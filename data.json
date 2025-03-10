@@ -1,0 +1,32 @@
+{
+  "videos": [
+    {
+      "file_name": "data/emergency-both1.mp4",
+      "label": "small emergency",
+      "duration": 2,
+      "fps": 30,
+      "frames": 60
+    },
+    {
+      "file_name": "data/emergency-both2.mp4",
+      "label": "small emergency",
+      "duration": 2,
+      "fps": 30,
+      "frames": 60
+    },
+    {
+      "file_name": "data/emergency-both3.mp4",
+      "label": "small emergency",
+      "duration": 2,
+      "fps": 30,
+      "frames": 60
+    },
+    {
+      "file_name": "data/emergency-both4.mp4",
+      "label": "small emergency",
+      "duration": 3,
+      "fps": 30,
+      "frames": 90
+    },
+  ]
+}
