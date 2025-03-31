@@ -1,0 +1,116 @@
+{
+    "videos": [
+        {
+            "file_name": "test/emergency-both1.mp4",
+            "label": "big emergency",
+            "duration": 2,
+            "fps": 30,
+            "frames": 60
+        },
+        {
+            "file_name": "test/emergency-both2.mp4",
+            "label": "big emergency",
+            "duration": 2,
+            "fps": 30,
+            "frames": 60
+        },
+        {
+            "file_name": "test/emergency-left1.mp4",
+            "label": "small emergency",
+            "duration": 3,
+            "fps": 30,
+            "frames": 90
+        },
+        {
+            "file_name": "test/emergency-left3.mp4",
+            "label": "small emergency",
+            "duration": 2,
+            "fps": 30,
+            "frames": 60
+        },
+        {
+            "file_name": "test/emergency-right1.mp4",
+            "label": "small emergency",
+            "duration": 2,
+            "fps": 30,
+            "frames": 60
+        },
+        {
+            "file_name": "test/emergency-right4.mp4",
+            "label": "small emergency",
+            "duration": 3,
+            "fps": 30,
+            "frames": 90
+        },
+        {
+            "file_name": "test/help-me2.mp4",
+            "label": "help me",
+            "duration": 3,
+            "fps": 30,
+            "frames": 90
+        },
+        {
+            "file_name": "test/help-me3.mp4",
+            "label": "help me",
+            "duration": 2,
+            "fps": 30,
+            "frames": 60
+        },
+        {
+            "file_name": "test/help-you2.mp4",
+            "label": "help you",
+            "duration": 2,
+            "fps": 30,
+            "frames": 60
+        },
+        {
+            "file_name": "test/help-you4.mp4",
+            "label": "help you",
+            "duration": 3,
+            "fps": 30,
+            "frames": 90
+        },
+        {
+            "file_name": "test/help3.mp4",
+            "label": "help",
+            "duration": 2,
+            "fps": 30,
+            "frames": 60
+        },
+        {
+            "file_name": "test/help4.mp4",
+            "label": "help",
+            "duration": 3,
+            "fps": 30,
+            "frames": 90
+        },
+        {
+            "file_name": "test/pain-normal1.mp4",
+            "label": "light pain",
+            "duration": 3,
+            "fps": 30,
+            "frames": 90
+        },
+        {
+            "file_name": "test/pain-normal2.mp4",
+            "label": "light pain",
+            "duration": 2,
+            "fps": 30,
+            "frames": 60
+        },
+        {
+            "file_name": "test/pain-severe1.mp4",
+            "label": "harsh pain",
+            "duration": 2,
+            "fps": 30,
+            "frames": 60
+        },
+        {
+            "file_name": "test/pain-severe3.mp4",
+            "label": "harsh pain",
+            "duration": 2,
+            "fps": 30,
+            "frames": 60
+        }
+    ]
+}  
