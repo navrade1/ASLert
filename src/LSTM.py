@@ -1,30 +1,93 @@
 import numpy as np
 import tensorflow as tf
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import LSTM, Dense
+import cv2
+import mediapipe as mp
+from mediapipe.tasks import python
+from mediapipe.tasks.python import vision
+import os
+from pathlib import Path
 
 # Set random seed for reproducibility
 np.random.seed(42)
 tf.random.set_seed(42)
 
-# Generate dummy sequential data
-X = np.random.rand(1000, 10, 1)  # 1000 samples, 10 time steps, 1 feature
-y = np.random.rand(1000, 1)      # 1000 target values
+# === MediaPipe Setup ===
+BaseOptions = python.BaseOptions
+HandLandmarker = vision.HandLandmarker
+HandLandmarkerOptions = vision.HandLandmarkerOptions
+VisionRunningMode = vision.RunningMode
 
-# Define LSTM model
-model = Sequential([
-    LSTM(50, activation='tanh', input_shape=(10, 1)),
-    Dense(1)
-])
+# Model path configuration
+model_path = './src/models/hand_landmarker.task'
 
-# Compile model
-model.compile(optimizer='adam', loss='mse')
+# Check if the model file exists
+if not os.path.exists(model_path):
+    raise RuntimeError(f"Unable to find the model file at {model_path}. Please make sure the model is located at this path.")
 
-# Train model
-model.fit(X, y, epochs=10, batch_size=32, verbose=1)
+HAND_LANDMARKER_CONFIG = {
+    'base_options': BaseOptions(model_asset_path=model_path),
+    'running_mode': VisionRunningMode.VIDEO,
+    'num_hands': 1,
+    'min_hand_detection_confidence': 0.5,
+    'min_hand_presence_confidence': 0.5,
+    'min_tracking_confidence': 0.5
+}
 
-# Make a prediction with a test sample
-test_sample = np.random.rand(1, 10, 1)
-prediction = model.predict(test_sample)
+DEBUG_MODE = True  # Set to True to enable debugging visualization
 
-print("Prediction:", prediction)
+# === Video Processing ===
+def process_video(video_path: Path):
+    options = HandLandmarkerOptions(**HAND_LANDMARKER_CONFIG)
+    with HandLandmarker.create_from_options(options) as detector:
+        cap = cv2.VideoCapture(str(video_path))
+        if not cap.isOpened():
+            raise RuntimeError(f"Error opening video file: {video_path}")
+        results = []
+        while cap.isOpened():
+            ret, frame = cap.read()
+            if not ret:
+                break
+            mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+            frame_timestamp_ms = int(cap.get(cv2.CAP_PROP_POS_MSEC))
+            result = detector.detect_for_video(mp_image, frame_timestamp_ms)
+            if result.hand_landmarks:
+                landmarks = np.array([[lm.x, lm.y, lm.z] for lm in result.hand_landmarks[0]])
+                results.append(landmarks.flatten())  # flatten to 63D vector (21 landmarks x 3)
+                if DEBUG_MODE:
+                    visualize_results(frame, result)
+            else:
+                print(f"No hand landmarks detected at frame {frame_timestamp_ms}")
+        cap.release()
+        cv2.destroyAllWindows()
+    if len(results) == 0:
+        print("No hand landmarks detected in the video.")
+    return np.array(results)
+
+# === Visualization for Debugging ===
+def visualize_results(frame, detection_result):
+    for i, landmarks in enumerate(detection_result.hand_landmarks):
+        handedness = detection_result.handedness[i][0]
+        if handedness.score < HAND_LANDMARKER_CONFIG['min_hand_presence_confidence']:
+            continue
+        cv2.putText(
+            frame,
+            f'{handedness.category_name} {handedness.score:.2f}',
+            (10, 30*(i+1)),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            1,
+            (255, 0, 0),
+            2
+        )
+        cv2.imshow('Hand Tracking', frame)
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            break
+
+# === Test the Code ===
+video_path = Path("sample_hand_video.mp4")  # Replace with your actual video path
+raw_data = process_video(video_path)
+
+# Check if there are any frames processed
+if len(raw_data) > 0:
+    print(f"Number of frames processed: {len(raw_data)}")
+else:
+    print("No frames with hand landmarks were processed.")
