@@ -156,4 +156,35 @@ def gen_sequences(data: np.ndarray, window_size: int) -> np.ndarray:
         return data[np.newaxis, ...]
     return np.array([data[i:i+window_size] for i in range(num_sequences)])
 
-__all__ = ['preprocess', 'HAND_LANDMARKER_CONFIG']
+def load_data(metadata_file: str, sequence_length=30) -> tuple[np.ndarray, np.ndarray]:
+    """
+    Load and preprocess data from a metadata file into uniform sequences.
+
+    Args:
+        metadata_file (str): Path to the metadata file containing video information and labels.
+        sequence_length (int): The number of frames to include in each sequence.
+
+    Returns:
+        tuple[np.ndarray, np.ndarray]: A tuple containing the processed input data (_array of sequences for each video_) and labels (_labeled classifications for each video_).
+    """
+    all_sequences = []
+    all_labels = []
+
+    with open(metadata_file) as f:
+        metadata = json.load(f)
+
+        for metadatum in metadata:
+            video_path = metadatum['location'] + metadatum['file_name']
+            sequences = preprocess(video_path)
+
+            sequences = sequences.reshape(len(sequences), sequence_length, -1)
+
+            all_sequences.append(sequences)
+            all_labels.extend([metadatum['label']] * len(sequences))
+
+    label_encoder = LabelEncoder()
+    all_labels = label_encoder.fit_transform(all_labels)
+    
+    return np.concatenate(all_sequences), np.array(all_labels), label_encoder
+
+__all__ = ['load_data', 'HAND_LANDMARKER_CONFIG']

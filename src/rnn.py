@@ -1,14 +1,26 @@
+# py 3.10
+
+import os
 import datetime
 import json
 import pickle
+import sys
 
+# Set CUDA environment variables BEFORE importing TensorFlow
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"  # Use first GPU
+os.environ["TF_FORCE_GPU_ALLOW_GROWTH"] = "true"
+os.environ["TF_GPU_ALLOCATOR"] = "cuda_malloc_async"
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "1"  # Show INFO messages
+os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
+
+# Now import TensorFlow after environment setup
 import numpy as np
 import tensorflow as tf
 import torch
 from keras import Sequential, layers, callbacks
 from sklearn.preprocessing import LabelEncoder
 from sklearn.model_selection import train_test_split
-from preprocess import preprocess
+from preprocess import load_data
 
 import colorama
 from colorama import Fore, Back, Style
@@ -28,13 +40,25 @@ try:
     if len(physical_devices) == 0:
         print(f"{Fore.YELLOW}   → No GPUs found with standard detection, trying alternatives...{Style.RESET_ALL}")
         
-        # Try to force CUDA initialization
+        # Try to force CUDA initialization with correct version
         import ctypes
+        import os
+        
+        cuda_loaded = False
+        dll = 'cudart64_12.dll'
         try:
-            ctypes.CDLL("cudart64_110.dll")
-            print(f"{Fore.YELLOW}   → CUDA runtime loaded manually{Style.RESET_ALL}")
+            ctypes.CDLL(dll)
+            print(f"{Fore.GREEN}   → CUDA runtime loaded manually: {dll}{Style.RESET_ALL}")
+            cuda_loaded = True
         except:
-            print(f"{Fore.YELLOW}   → Failed to load CUDA runtime manually{Style.RESET_ALL}")
+            print(f"{Fore.YELLOW}   → Failed to load CUDA runtime: {dll}{Style.RESET_ALL}")
+        
+        if not cuda_loaded:
+            print(f"{Fore.YELLOW}   → Could not load any CUDA runtime manually{Style.RESET_ALL}")
+            
+        # Set environment variables to help TensorFlow find CUDA
+        os.environ["TF_FORCE_GPU_ALLOW_GROWTH"] = "true"
+        os.environ["TF_GPU_ALLOCATOR"] = "cuda_malloc_async"
         
         # Try again after manual initialization
         physical_devices = tf.config.list_physical_devices('GPU')
@@ -59,12 +83,17 @@ try:
         except Exception as e:
             print(f"{Fore.YELLOW}   → Warning: Could not enable mixed precision: {e}{Style.RESET_ALL}")
         
-        # Set TensorFlow to use GPU
-        try:
-            tf.config.set_visible_devices(physical_devices, 'GPU')
-            print(f"{Fore.GREEN}   → GPU set as visible device{Style.RESET_ALL}")
-        except Exception as e:
-            print(f"{Fore.YELLOW}   → Warning: Could not set visible devices: {e}{Style.RESET_ALL}")
+    # Set TensorFlow to use GPU
+    try:
+        tf.config.set_visible_devices(physical_devices, 'GPU')
+        print(f"{Fore.GREEN}   → GPU set as visible device{Style.RESET_ALL}")
+        
+        # Log GPU device properties
+        for i, gpu in enumerate(physical_devices):
+            details = tf.config.experimental.get_device_details(gpu)
+            print(f"{Fore.GREEN}   → GPU {i} details: {details}{Style.RESET_ALL}")
+    except Exception as e:
+        print(f"{Fore.YELLOW}   → Warning: Could not set visible devices: {e}{Style.RESET_ALL}")
             
         # Verify GPU is being used
         print(f"{Fore.CYAN}   → Verifying GPU availability...{Style.RESET_ALL}")
@@ -83,13 +112,33 @@ try:
         print(f"{Fore.YELLOW}   → Verify that your GPU is CUDA-compatible{Style.RESET_ALL}")
         print(f"{Fore.YELLOW}   → Training will be significantly slower on CPU{Style.RESET_ALL}")
         
+        # Check PyTorch CUDA availability for diagnostic purposes
         try:
             print(f"{Fore.YELLOW}   → CUDA available (PyTorch): {torch.cuda.is_available()}{Style.RESET_ALL}")
             if torch.cuda.is_available():
                 print(f"{Fore.YELLOW}   → CUDA version: {torch.version.cuda}{Style.RESET_ALL}")
                 print(f"{Fore.YELLOW}   → GPU device: {torch.cuda.get_device_name(0)}{Style.RESET_ALL}")
-        except:
-            pass
+                
+                # Try to force TensorFlow to use the same GPU
+                import os
+                os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+                print(f"{Fore.YELLOW}   → Set CUDA_VISIBLE_DEVICES=0{Style.RESET_ALL}")
+                
+                # Try again with environment variables set
+                physical_devices = tf.config.list_physical_devices('GPU')
+                if len(physical_devices) > 0:
+                    print(f"{Back.GREEN}{Fore.BLACK} ✓ GPU detected after environment variable update {Style.RESET_ALL}")
+                    for device in physical_devices:
+                        print(f"{Fore.GREEN}   → Name: {device.name}, Type: {device.device_type}{Style.RESET_ALL}")
+                    
+                    # Configure memory growth
+                    for gpu in physical_devices:
+                        try:
+                            tf.config.experimental.set_memory_growth(gpu, True)
+                        except Exception as e:
+                            print(f"{Fore.YELLOW}   → Warning: Could not set memory growth: {e}{Style.RESET_ALL}")
+        except Exception as e:
+            print(f"{Fore.YELLOW}   → Error checking PyTorch CUDA: {e}{Style.RESET_ALL}")
 
 except Exception as e:
     print(f"{Back.RED}{Fore.WHITE} ✗ Error during GPU configuration: {e} {Style.RESET_ALL}")
@@ -108,37 +157,6 @@ def create_serving_signature(model):
             "class_id": tf.argmax(predictions, axis=-1)
         }
     return serve
-
-def load_data(metadata_file: str, sequence_length=30) -> tuple[np.ndarray, np.ndarray]:
-    """
-    Load and preprocess data from a metadata file into uniform sequences.
-
-    Args:
-        metadata_file (str): Path to the metadata file containing video information and labels.
-        sequence_length (int): The number of frames to include in each sequence.
-
-    Returns:
-        tuple[np.ndarray, np.ndarray]: A tuple containing the processed input data (_array of sequences for each video_) and labels (_labeled classifications for each video_).
-    """
-    all_sequences = []
-    all_labels = []
-
-    with open(metadata_file) as f:
-        metadata = json.load(f)
-
-        for metadatum in metadata:
-            video_path = metadatum['location'] + metadatum['file_name']
-            sequences = preprocess(video_path)
-
-            sequences = sequences.reshape(len(sequences), sequence_length, -1)
-
-            all_sequences.append(sequences)
-            all_labels.extend([metadatum['label']] * len(sequences))
-
-    label_encoder = LabelEncoder()
-    all_labels = label_encoder.fit_transform(all_labels)
-    
-    return np.concatenate(all_sequences), np.array(all_labels), label_encoder
 
 def create_rnn(num_classes: int, sequence_length=30, num_features: int = 21*3, dropout_rate: int = 0.3) -> Sequential:
     input_shape = (sequence_length, num_features)
