@@ -18,7 +18,7 @@ HandLandmarkerOptions = vision.HandLandmarkerOptions
 VisionRunningMode = vision.RunningMode
 
 # Model path configuration
-model_path = './src/models/hand_landmarker.task'
+model_path = 'src/models/hand_landmarker.task'
 
 # Check if the model file exists
 if not os.path.exists(model_path):
@@ -37,6 +37,10 @@ DEBUG_MODE = True  # Set to True to enable debugging visualization
 
 # === Video Processing ===
 def process_video(video_path: Path):
+    # Check if video file exists
+    if not video_path.exists():
+        raise RuntimeError(f"Video file not found: {video_path}")
+
     options = HandLandmarkerOptions(**HAND_LANDMARKER_CONFIG)
     with HandLandmarker.create_from_options(options) as detector:
         cap = cv2.VideoCapture(str(video_path))
@@ -82,12 +86,22 @@ def visualize_results(frame, detection_result):
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
 
-# === Test the Code ===
-video_path = Path("sample_hand_video.mp4")  # Replace with your actual video path
-raw_data = process_video(video_path)
+# === Helper to List Video Files ===
+def list_available_videos(folder_path: Path):
+    print("Available .mp4 videos in the folder:")
+    for file in folder_path.glob("*.mp4"):
+        print(f" - {file.name}")
 
-# Check if there are any frames processed
-if len(raw_data) > 0:
-    print(f"Number of frames processed: {len(raw_data)}")
-else:
-    print("No frames with hand landmarks were processed.")
+# === Test the Code ===
+
+video_folder = Path(r"C:\Users\adiba\OneDrive\Spring 2025\Machine Learning\ASLert\data")
+list_available_videos(video_folder)
+
+# === Process All Videos in the Folder ===
+for video_file in video_folder.glob("*.mp4"):
+    print(f"\n=== Processing: {video_file.name} ===")
+    raw_data = process_video(video_file)
+    if len(raw_data) > 0:
+        print(f"Processed {len(raw_data)} frames with hand landmarks.")
+    else:
+        print("No hand landmarks detected in this video.")
