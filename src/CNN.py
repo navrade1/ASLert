@@ -11,7 +11,7 @@ import cv2
 
 class ASLVideoDataset(Dataset):
     def __init__(self, json_path, video_dir,
-                 target_frames=90, target_size=(112, 112)):
+                 target_frames, target_size):
         with open(json_path, 'r') as f:
             self.video_data = json.load(f)['videos']
 
@@ -72,55 +72,41 @@ class ASL3DCNN(nn.Module):
     def __init__(self, num_classes, dropout_rate=0.5):
         super(ASL3DCNN, self).__init__()
 
-        self.conv1 = nn.Conv3d(3, 32, kernel_size=(3, 3, 3), padding=(1, 1, 1))
+        self.conv1 = nn.Conv3d(3, 16, kernel_size=(3, 3, 3), padding=(1, 1, 1))
+        self.bn1 = nn.BatchNorm3d(16)
         self.pool1 = nn.MaxPool3d(kernel_size=(2, 2, 2), stride=(2, 2, 2))
 
-        self.conv2 = nn.Conv3d(32, 64, kernel_size=(3, 3, 3), padding=(1, 1, 1))
+        self.conv2 = nn.Conv3d(16, 32, kernel_size=(3, 3, 3), padding=(1, 1, 1))
+        self.bn2 = nn.BatchNorm3d(32)
         self.pool2 = nn.MaxPool3d(kernel_size=(2, 2, 2), stride=(2, 2, 2))
 
-        self.conv3 = nn.Conv3d(64, 128, kernel_size=(3, 3, 3), padding=(1, 1, 1))
+        self.conv3 = nn.Conv3d(32, 64, kernel_size=(3, 3, 3), padding=(1, 1, 1))
+        self.bn3 = nn.BatchNorm3d(64)
         self.pool3 = nn.MaxPool3d(kernel_size=(2, 2, 2), stride=(2, 2, 2))
 
-        self.conv4 = nn.Conv3d(128, 256, kernel_size=(3, 3, 3), padding=(1, 1, 1))
-        self.pool4 = nn.MaxPool3d(kernel_size=(2, 2, 2), stride=(2, 2, 2))
-
-        self.fc5 = nn.Linear(256 * 12 * 7 * 7, 1024)
-        self.fc6 = nn.Linear(1024, num_classes)
+        self.global_avg_pool = nn.AdaptiveAvgPool3d(1)
+        self.fc = nn.Linear(64, num_classes)
 
         self.dropout = nn.Dropout(dropout_rate)
         self.relu = nn.ReLU()
 
     def forward(self, x):
-        x = self.relu(self.conv1(x))
-        x = self.pool1(x)
-
-        x = self.relu(self.conv2(x))
-        x = self.pool2(x)
-
-        x = self.relu(self.conv3(x))
-        x = self.pool3(x)
-
-        x = self.relu(self.conv4(x))
-        x = self.pool4(x)
-
+        x = self.pool1(self.relu(self.bn1(self.conv1(x))))
+        x = self.pool2(self.relu(self.bn2(self.conv2(x))))
+        x = self.pool3(self.relu(self.bn3(self.conv3(x))))
+        
+        x = self.global_avg_pool(x)
         x = x.view(x.size(0), -1)
-
-        x = self.relu(self.fc5(x))
         x = self.dropout(x)
-
-        x = self.relu(self.fc6(x))
-        x = self.dropout(x)
-
+        x = self.fc(x)
         return x
 
 def train_model(train_loader, val_loader, model, criterion,
-                optimizer, device, num_epochs=50):
+                optimizer, device, num_epochs):
 
     for epoch in range(num_epochs):
         model.train()
         train_loss = 0.0
-        train_correct = 0
-        train_total = 0
 
         for videos, labels in train_loader:
             videos, labels = videos.to(device), labels.to(device)
@@ -132,37 +118,11 @@ def train_model(train_loader, val_loader, model, criterion,
             optimizer.step()
 
             train_loss += loss.item()
-            _, predicted = torch.max(outputs.data, 1)
-            train_total += labels.size(0)
-            train_correct += (predicted == labels).sum().item()
-
-        model.eval()
-        val_loss = 0.0
-        val_correct = 0
-        val_total = 0
-
-        with torch.no_grad():
-            for videos, labels in val_loader:
-                videos, labels = videos.to(device), labels.to(device)
-                outputs = model(videos)
-                loss = criterion(outputs, labels)
-
-                val_loss += loss.item()
-                _, predicted = torch.max(outputs.data, 1)
-                val_total += labels.size(0)
-                val_correct += (predicted == labels).sum().item()
-
-        train_accuracy = 100 * train_correct / train_total
-        val_accuracy = 100 * val_correct / val_total
 
         print(f'Epoch [{epoch + 1}/{num_epochs}]')
         print(f'Train Loss: {train_loss/len(train_loader):.4f}')
-        print(f'Train Accuracy: {train_accuracy:.2f}%')
 
 def test_model(test_loader, model, criterion, device):
-    """
-    Separate testing method
-    """
     model.eval()
     total_loss = 0.0
     total_correct = 0
@@ -208,15 +168,15 @@ def test_model(test_loader, model, criterion, device):
         'true_labels': all_true_labels
     }
 
-batch_size = 5
-learning_rate = 0.0001
-num_epochs = 3
+batch_size = 32
+learning_rate = 0.01
+num_epochs = 20
 target_frames = 60
 target_size = (224, 224)
 
 train_json_path = '../data/.labels.json'
 test_json_path = '../test/labels.json'
-train_video_dir = '../'
+train_video_dir = '../data'
 test_video_dir = '../'
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -235,8 +195,8 @@ test_dataset = ASLVideoDataset(
     target_size = target_size
 )
 
-train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
+train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=4)
+test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, num_workers=4)
 
 num_classes = len(train_dataset.label_map)
 model = ASL3DCNN(num_classes=num_classes).to(device)
