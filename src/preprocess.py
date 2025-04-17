@@ -1,5 +1,3 @@
-DEBUG_MODE = False
-
 import cv2
 import numpy as np
 import mediapipe as mp
@@ -10,7 +8,6 @@ from collections import deque
 # Tasks API Reference: https://ai.google.dev/edge/api/mediapipe/python/mp/tasks?hl=en
 
 # Configuration packaged here for easy selective modification & unpacking
-# - running_mode: set to `VisionRunningMode.LIVE_STREAM` for webcam input
 HAND_LANDMARKER_CONFIG = {
     # assumes running any code from home dir
     'base_options': python.BaseOptions(model_asset_path='src/models/hand_landmarker.task'),
@@ -20,6 +17,12 @@ HAND_LANDMARKER_CONFIG = {
     'min_hand_presence_confidence': 0.5,
     'min_tracking_confidence': 0.5
 }
+
+#===================================================================
+
+DEBUG_MODE=False
+
+#===================================================================
 
 # Track hand positions across last 5 frames for temporal consistency
 POSITION_HISTORY = deque(maxlen=5)
@@ -42,9 +45,6 @@ def process_video(video_path: str) -> np.ndarray:
             # Process frame
             mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
             frame_timestamp_ms = int(cap.get(cv2.CAP_PROP_POS_MSEC))
-            #============================================================================
-            # IMPLEMENT LIVE_STREAM MODE LATER (w/ `detect_async()` - https://ai.google.dev/edge/api/mediapipe/python/mp/tasks/vision/HandLandmarker?hl=en#detect_async)
-            #============================================================================
             result = detector.detect_for_video(mp_image, frame_timestamp_ms)
             if result.hand_landmarks:
                 hands = []
@@ -109,24 +109,11 @@ def visualize_results(frame, detection_result):
     Display confidence scores of hand landmarks on processed videos.
     - Set DEBUG_MODE=True to use this solution.
     """
-    for i, hand_landmarks in enumerate(detection_result.hand_landmarks):
-        #  ^^^^^^^^^^^^^^
-        # hand_landmarks used for drawing in legacy mode
+    for i in range(len(detection_result.hand_landmarks)):
 
         handedness = detection_result.handedness[i][0]
         if handedness.score < HAND_LANDMARKER_CONFIG['min_hand_presence_confidence']:
             continue
-
-        #=================================================================
-        # DEPRECATED
-        # mp.solutions.drawing_utils.draw_landmarks(
-        #     frame,
-        #     hand_landmarks,
-        #     mp.solutions.hands.HAND_CONNECTIONS,
-        #     landmark_drawing_spec=mp.solutions.drawing_utils.DrawingSpec(color=(121, 22, 76), thickness=2, circle_radius=4),
-        #     connection_drawing_spec=mp.solutions.drawing_utils.DrawingSpec(color=(250, 44, 90), thickness=2)
-        # )
-        #=================================================================
 
         cv2.putText(
             frame,
