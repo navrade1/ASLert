@@ -1,10 +1,8 @@
-# py 3.10
+# py 3.10...?
 
 import os
 import datetime
-import json
 import pickle
-import sys
 
 # Set CUDA environment variables BEFORE importing TensorFlow
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"  # Use first GPU
@@ -18,7 +16,6 @@ import numpy as np
 import tensorflow as tf
 import torch
 from keras import Sequential, layers, callbacks
-from sklearn.preprocessing import LabelEncoder
 from sklearn.model_selection import train_test_split
 from preprocess import load_data
 
