@@ -30,8 +30,10 @@ sys.excepthook = custom_excepthook
 # Reduce TensorFlow logging verbosity
 tf.debugging.set_log_device_placement(False)
 tf.config.set_soft_device_placement(True)
+# Model config
 SEQUENCE_LENGTH = 30
-MODEL_PATH = 'src/models/rnn/model_20250416-190035.keras'
+# Hard-coded model... simple sol'n for now
+MODEL_PATH = 'src/models/rnn/model_20250420-191241.keras'
 LABELS = ["big emergency", "harsh pain", "help", "help me", 
           "help you", "light pain", "small emergency"]
 
