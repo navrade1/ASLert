@@ -1,107 +1,68 @@
 import numpy as np
 import tensorflow as tf
-import cv2
-import mediapipe as mp
-from mediapipe.tasks import python
-from mediapipe.tasks.python import vision
-import os
-from pathlib import Path
+from tensorflow.keras.layers import Input, LSTM, BatchNormalization, Dropout, Dense, Normalization
+from tensorflow.keras.models import Model
+from tensorflow.keras.regularizers import l2
+from sklearn.model_selection import train_test_split
+from colorama import Fore, Style
+from preprocess import load_data
+import json  # Added in case your preprocess script or data uses it
 
-# Set random seed for reproducibility
-np.random.seed(42)
-tf.random.set_seed(42)
+# === Load Processed Landmark Data ===
+metadata_file = 'data/.labels.json'
+X, y, label_encoder = load_data(metadata_file)
 
-# === MediaPipe Setup ===
-BaseOptions = python.BaseOptions
-HandLandmarker = vision.HandLandmarker
-HandLandmarkerOptions = vision.HandLandmarkerOptions
-VisionRunningMode = vision.RunningMode
+# === Train/Test Split ===
+X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_state=42)
 
-# Model path configuration
-model_path = 'src/models/hand_landmarker.task'
+# === Model Parameters ===
+input_shape = X_train.shape[1:]  # (timesteps, features)
+num_classes = len(label_encoder.classes_)
+dropout_rate = 0.3
 
-# Check if the model file exists
-if not os.path.exists(model_path):
-    raise RuntimeError(f"Unable to find the model file at {model_path}. Please make sure the model is located at this path.")
+# === Build LSTM Model ===
+inputs = Input(shape=input_shape)
 
-HAND_LANDMARKER_CONFIG = {
-    'base_options': BaseOptions(model_asset_path=model_path),
-    'running_mode': VisionRunningMode.VIDEO,
-    'num_hands': 1,
-    'min_hand_detection_confidence': 0.5,
-    'min_hand_presence_confidence': 0.5,
-    'min_tracking_confidence': 0.5
-}
+# Input normalization
+x = Normalization()(inputs)
+print(f"{Fore.CYAN} → Input normalization applied{Style.RESET_ALL}")
 
-DEBUG_MODE = True  # Set to True to enable debugging visualization
+# First LSTM layer
+x = LSTM(256, return_sequences=True, activation='tanh',
+         kernel_regularizer=l2(0.001))(x)
+x = BatchNormalization()(x)
+x = Dropout(dropout_rate)(x)
 
-# === Video Processing ===
-def process_video(video_path: Path):
-    # Check if video file exists
-    if not video_path.exists():
-        raise RuntimeError(f"Video file not found: {video_path}")
+# Second LSTM layer
+x = LSTM(128, return_sequences=False, activation='tanh',
+         kernel_regularizer=l2(0.001))(x)
+x = BatchNormalization()(x)
+x = Dropout(dropout_rate)(x)
 
-    options = HandLandmarkerOptions(**HAND_LANDMARKER_CONFIG)
-    with HandLandmarker.create_from_options(options) as detector:
-        cap = cv2.VideoCapture(str(video_path))
-        if not cap.isOpened():
-            raise RuntimeError(f"Error opening video file: {video_path}")
-        results = []
-        while cap.isOpened():
-            ret, frame = cap.read()
-            if not ret:
-                break
-            mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
-            frame_timestamp_ms = int(cap.get(cv2.CAP_PROP_POS_MSEC))
-            result = detector.detect_for_video(mp_image, frame_timestamp_ms)
-            if result.hand_landmarks:
-                landmarks = np.array([[lm.x, lm.y, lm.z] for lm in result.hand_landmarks[0]])
-                results.append(landmarks.flatten())  # flatten to 63D vector (21 landmarks x 3)
-                if DEBUG_MODE:
-                    visualize_results(frame, result)
-            else:
-                print(f"No hand landmarks detected at frame {frame_timestamp_ms}")
-        cap.release()
-        cv2.destroyAllWindows()
-    if len(results) == 0:
-        print("No hand landmarks detected in the video.")
-    return np.array(results)
+# Output layer
+outputs = Dense(num_classes, activation='softmax')(x)
 
-# === Visualization for Debugging ===
-def visualize_results(frame, detection_result):
-    for i, landmarks in enumerate(detection_result.hand_landmarks):
-        handedness = detection_result.handedness[i][0]
-        if handedness.score < HAND_LANDMARKER_CONFIG['min_hand_presence_confidence']:
-            continue
-        cv2.putText(
-            frame,
-            f'{handedness.category_name} {handedness.score:.2f}',
-            (10, 30*(i+1)),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            1,
-            (255, 0, 0),
-            2
-        )
-        cv2.imshow('Hand Tracking', frame)
-        if cv2.waitKey(1) & 0xFF == ord('q'):
-            break
+# Compile the model
+model = Model(inputs, outputs)
+model.compile(
+    optimizer='adam',
+    loss='sparse_categorical_crossentropy',
+    metrics=['accuracy']
+)
 
-# === Helper to List Video Files ===
-def list_available_videos(folder_path: Path):
-    print("Available .mp4 videos in the folder:")
-    for file in folder_path.glob("*.mp4"):
-        print(f" - {file.name}")
+# === Train the Model ===
+history = model.fit(
+    X_train, y_train,
+    validation_data=(X_val, y_val),
+    epochs=25,
+    batch_size=32
+)
 
-# === Test the Code ===
+# Evaluate on validation set instead of test set (since no separate test set is defined)
+print(f"\n{Fore.MAGENTA}{Style.BRIGHT}MODEL EVALUATION (on Validation Set){Style.RESET_ALL}")
+loss, accuracy = model.evaluate(X_val, y_val)
+print(f"Validation Loss: {loss:.4f}, Validation Accuracy: {accuracy:.4f}")
 
-video_folder = Path(r"C:\Users\adiba\OneDrive\Spring 2025\Machine Learning\ASLert\data")
-list_available_videos(video_folder)
-
-# === Process All Videos in the Folder ===
-for video_file in video_folder.glob("*.mp4"):
-    print(f"\n=== Processing: {video_file.name} ===")
-    raw_data = process_video(video_file)
-    if len(raw_data) > 0:
-        print(f"Processed {len(raw_data)} frames with hand landmarks.")
-    else:
-        print("No hand landmarks detected in this video.")
+# === Save the Model (optional) ===
+model.save("src/models/lstm/asl_lstm_model.keras")
+model.summary()
