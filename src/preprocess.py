@@ -4,6 +4,7 @@ import mediapipe as mp
 from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
 from collections import deque
+import json
 from sklearn.preprocessing import LabelEncoder
 
 # Tasks API Reference: https://ai.google.dev/edge/api/mediapipe/python/mp/tasks?hl=en
