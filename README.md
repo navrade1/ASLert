@@ -12,7 +12,7 @@ For inquiries or more information, feel free to reach us at:
 
 LinkedIn: [Insert LinkedIn URLs]
 
-Student Emails: adibasel04@gmail.com, nikoavradopoulos@gmail.com
+Student Emails: adibasel04@gmail.com, nikoavradopoulos@gmail.com, rpatel14821@gmail.com
 
 2. What This Is
 ASLert is an emergency American Sign Language (ASL) interpreter developed to offer real-time, automatic ASL translation during emergencies. The system leverages video input and AI-powered models to translate critical emergency phrases and gestures into ASL, ensuring swift and accurate communication during urgent situations.
