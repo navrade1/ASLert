@@ -10,8 +10,8 @@
 We are a team of students from Georgia State University under [Dr. Esra Akbas]()' Spring 2025 Honors Machine Learning course. Our team includes:
 
 - [Niko Avradopoulos](https://www.linkedin.com/in/nikoavra/)
-- [Rudra Patel]()
-- [Aditya Sharma]()
+- [Rudra Patel](https://www.linkedin.com/in/rudra-patel-6a9080295/)
+- [Aditya Sharma](https://www.linkedin.com/in/aditya-sharma-32a379291/)
 
 ## What is this?
 > _This is a project for our Honors Machine Learning course. Consequently, updates to this repository musn't be expected, but you may still contact our team_ ___here?___ _for any inquiries._
